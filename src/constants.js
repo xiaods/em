@@ -26,10 +26,15 @@ export const TUTORIAL_STEP3_DELETE = 3
 export const TUTORIAL_STEP4_END = 4
 
 // constants for different data schema versions
+
+// initial implementatin of contextChildren
 export const SCHEMA_CONTEXTCHILDREN = 1
-export const SCHEMA_ROOT = 2 // change root → __ROOT__
-// export const SCHEMA_HASHKEYS = 3 // murmurhash data keys to avoid key path too long firebase error
-export const SCHEMA_LATEST = SCHEMA_ROOT
+// change root → __ROOT__
+export const SCHEMA_ROOT = 2
+// store contextChildren as object instead of array so that updates are independent
+export const SCHEMA_CONTEXTCHILDRENOBJECT = 3
+
+export const SCHEMA_LATEST = SCHEMA_CONTEXTCHILDRENOBJECT
 
 // store the empty string as a non-empty token in firebase since firebase does not allow empty child records
 // See: https://stackoverflow.com/questions/15911165/create-an-empty-child-record-in-firebase

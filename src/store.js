@@ -28,6 +28,7 @@ import {
   decodeItemsUrl,
   equalItemRanked,
   equalItemsRanked,
+  encodeItem,
   encodeItems,
   encodeItemsUrl,
   equalArrays,
@@ -217,7 +218,7 @@ export const appReducer = (state = initialState(), action) => {
 
       // delete empty children
       for (let contextEncoded in contextChildrenUpdates) {
-        if (!contextChildrenUpdates[contextEncoded] || contextChildrenUpdates[contextEncoded].length === 0) {
+        if (!contextChildrenUpdates[contextEncoded]) {
           delete newContextChildren[contextEncoded]
         }
       }
@@ -540,21 +541,27 @@ export const appReducer = (state = initialState(), action) => {
 
       // preserve contextChildren
       const contextNewEncoded = encodeItems(showContexts ? itemsNew : context)
-      const itemNewChildren = (state.contextChildren[contextNewEncoded] || [])
-        .filter(child =>
-          !equalItemRanked(child, { key: oldValue, rank }) &&
-          !equalItemRanked(child, { key: newValue, rank })
-        )
-        .concat({
-          key: showContexts ? key : newValue,
-          rank,
-          lastUpdated: timestamp()
-        })
+      console.log("contextNewEncoded", contextNewEncoded)
+      // const itemNewChildren = (state.contextChildren[contextNewEncoded] || {})
+      //   .filter(child =>
+      //     !equalItemRanked(child, { key: oldValue, rank }) &&
+      //     !equalItemRanked(child, { key: newValue, rank })
+      //   )
+      //   .concat()
 
-      // preserve contextChildren
+      const newChild = {
+        key: showContexts ? key : newValue,
+        rank,
+        lastUpdated: timestamp()
+      }
+      const itemNewChildren = {
+        [encodeItem({ key: oldValue, rank })]: null,
+        [encodeItem(newChild)]: newChild
+      }
+      console.log("itemNewChild", itemNewChildren)
+
       const contextOldEncoded = encodeItems(showContexts ? itemsOld : context)
-      const itemOldChildren = (state.contextChildren[contextOldEncoded] || [])
-        .filter(child => !equalItemRanked(child, signifier(itemsRankedLiveOld)))
+      console.log("contextOldEncoded", contextOldEncoded)
 
       const contextParentEncoded = encodeItems(rootedIntersections(showContexts
         ? context
@@ -587,7 +594,6 @@ export const appReducer = (state = initialState(), action) => {
 
         if (showContexts) {
           localStorage['data-' + key] = JSON.stringify(itemParentNew)
-          localStorage['contextChildren' + contextOldEncoded] = JSON.stringify(itemOldChildren)
         }
       })
 
@@ -655,7 +661,6 @@ export const appReducer = (state = initialState(), action) => {
           [contextNewEncoded]: itemNewChildren
         },
         showContexts ? {
-          [contextOldEncoded]: itemOldChildren,
           [contextParentEncoded]: itemParentChildren
         } : null,
         contextChildrenRecursiveUpdates

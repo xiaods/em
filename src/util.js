@@ -19,6 +19,7 @@ import {
   RENDER_DELAY,
   ROOT_TOKEN,
   SCHEMA_CONTEXTCHILDREN,
+  SCHEMA_CONTEXTCHILDRENOBJECT,
   SCHEMA_LATEST,
   SCHEMA_ROOT,
   TUTORIAL_STEP0_START,
@@ -121,6 +122,7 @@ export const isContextViewActive = (items, { state } = {}) => {
   // return contextViews[encodeItems(items)] || (subthought() && contextViews[encodeItems(intersections(items).concat(subthought()))])
 }
 
+export const encodeItem = ({ key, rank }) => key + (rank != null ? '__SEP__' + rank : '')
 
 /** Encodes an items array into a URL. */
 export const encodeItemsUrl = (items, { contextViews } = {}) =>
@@ -701,37 +703,11 @@ export const getDescendants = (itemsRanked, recur/*INTERNAL*/) => {
 export const getChildrenWithRank = (itemsRanked, data, contextChildren) => {
   data = data || store.getState().data
   contextChildren = contextChildren || store.getState().contextChildren
-  const children = (contextChildren[encodeItems(unrank(itemsRanked))] || [])
-    .filter(child => {
-      if (data[child.key]) {
-        return true
-      }
-      else
-      {
-        // TODO: This should never happen
-        // console.warn(`Could not find item data for "${child.key} in ${JSON.stringify(unrank(itemsRanked))}`)
-
-        // Mitigation (does not remove data items)
-        // setTimeout(() => {
-        //   if (store) {
-        //     const state = store.getState()
-        //     // check again in case state has changed
-        //     if (!state.data[child.key]) {
-        //       const contextEncoded = encodeItems(unrank(itemsRanked))
-        //       store.dispatch({
-        //         type: 'data',
-        //         contextChildrenUpdates: {
-        //           [contextEncoded]: (state.contextChildren[contextEncoded] || [])
-        //             .filter(child2 => child2.key !== child.key)
-        //         }
-        //       })
-        //     }
-        //   }
-        // })
-        return false
-      }
-    })
-    .map(child => {
+  const childrenObject = contextChildren[encodeItems(unrank(itemsRanked))] || []
+  const childrenArray = Object.keys(childrenObject)
+    .filter(childEncoded => data[childrenObject[childEncoded].key])
+    .map(childEncoded => {
+      const child = childrenObject[childEncoded]
       const animateCharsVisible = data[child.key].animateCharsVisible
       return animateCharsVisible != null
         ? Object.assign({}, child, { animateCharsVisible })
@@ -743,13 +719,13 @@ export const getChildrenWithRank = (itemsRanked, data, contextChildren) => {
   const childrenDEPRECATED = validateGetChildrenDeprecated ? getChildrenWithRankDEPRECATED(unrank(itemsRanked), data) : undefined
 
   // compare with legacy function a percentage of the time to not affect performance
-  if (validateGetChildrenDeprecated && !equalItemsRanked(children, childrenDEPRECATED)) {
+  if (validateGetChildrenDeprecated && !equalItemsRanked(childrenArray, childrenDEPRECATED)) {
     console.warn(`getChildrenWithRank returning different result from getChildrenWithRankDEPRECATED for children of ${JSON.stringify(unrank(itemsRanked))}`)
-    log({ children })
+    log({ childrenArray })
     log({ childrenDEPRECATED })
   }
 
-  return children
+  return childrenArray
 }
 
 // preserved for testing functional parity with new function
@@ -1731,7 +1707,6 @@ export const getSubthoughts = (text, numWords, { data=store.getState().data } = 
 export const sync = (dataUpdates={}, contextChildrenUpdates={}, { localOnly, forceRender, updates, callback } = {}) => {
 
   const lastUpdated = timestamp()
-  const { data } = store.getState()
 
   // state
   store.dispatch({ type: 'data', data: dataUpdates, contextChildrenUpdates, forceRender })
@@ -1742,18 +1717,23 @@ export const sync = (dataUpdates={}, contextChildrenUpdates={}, { localOnly, for
       localStorage['data-' + key] = JSON.stringify(dataUpdates[key])
     }
     else {
-      localStorage.removeItem('data-' + key)
+      delete localStorage['data-' + key]
     }
     localStorage.lastUpdated = lastUpdated
   }
 
-  // go to some extra trouble to not store tutorial thoughts
   for (let contextEncoded in contextChildrenUpdates) {
-    const children = contextChildrenUpdates[contextEncoded].filter(child => {
-      return !(data[child.key] && data[child.key].tutorial) && !(dataUpdates[child.key] && dataUpdates[child.key].tutorial)
-    })
-    if (children.length > 0) {
-      localStorage['contextChildren' + contextEncoded] = JSON.stringify(children)
+    const children = contextChildrenUpdates[contextEncoded]
+    for (let childEncoded in children) {
+      const child = children[childEncoded]
+      const localChildEncoded = 'contextChildren' + contextEncoded + '__SEP__' + childEncoded
+      if (child) {
+        localStorage[localChildEncoded] = JSON.stringify(child)
+      }
+      else {
+        delete localStorage[localChildEncoded]
+      }
+      localStorage.lastUpdated = lastUpdated
     }
   }
 
@@ -2043,7 +2023,7 @@ export const fetch = value => {
 
       // const oldChildren = state.contextChildren[contextEncoded]
       // if (itemChildren && (!oldChildren || itemChildren.lastUpdated > oldChildren.lastUpdated)) {
-      if (itemChildren && itemChildren.length > 0) {
+      if (itemChildren) {
         // do not force render here, but after all values have been added
         localStorage['contextChildren' + contextEncoded] = JSON.stringify(itemChildren)
       }
@@ -2093,6 +2073,32 @@ export const fetch = value => {
       if (!state.cursor) {
         store.dispatch({ type: 'render' })
       }
+    })
+  }
+
+  if (schemaVersion < SCHEMA_CONTEXTCHILDRENOBJECT) {
+
+    // defer migration until other migrations complete
+    // TODO: use promises to avoid race condition with syncRemoteData above
+    setTimeout(() => {
+      console.info('Migrating contextChildren to object...')
+
+      // convert contextChildren from array to object
+      const contextChildrenUpdates = Object.keys(value.contextChildren).reduce((accum, encodedContext) => {
+        const children = value.contextChildren[encodedContext]
+        const contextChildrenObject = children.reduce((childrenAccum, child) => ({
+          ...childrenAccum,
+          [encodeItem(child)]: child
+        }), {})
+        return {
+          ...accum,
+          [encodedContext]: contextChildrenObject
+        }
+      }, {})
+
+      sync({}, contextChildrenUpdates, { updates: { schemaVersion: SCHEMA_CONTEXTCHILDRENOBJECT }, forceRender: true, callback: () => {
+        console.info('Done')
+      }})
     })
   }
 }
