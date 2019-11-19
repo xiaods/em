@@ -1633,7 +1633,9 @@ export const userAuthenticated = user => {
   window.clearTimeout(globals.offlineTimer)
 
   // save the user ref and uid into state
-  const userRef = firebase.database().ref('users/' + user.uid)
+  const userRef = firebase.database().ref(`users/${user.uid}`)
+  const dataRef = firebase.database().ref(`users/${user.uid}/data/`)
+  const contextChildrenRef = firebase.database().ref(`users/${user.uid}/contextChildren/`)
 
   store.dispatch({ type: 'authenticate', value: true, userRef, user })
 
@@ -1657,11 +1659,16 @@ export const userAuthenticated = user => {
     localStorage.user = user.email
   }
 
-  // load Firebase data
   // TODO: Prevent userAuthenticated from being called twice in a row to avoid having to detach the value handler
   userRef.off('value')
+  dataRef.off()
+  contextChildrenRef.off()
+
+
+  // load Firebase data
   userRef.on('value', snapshot => {
     const value = snapshot.val()
+    console.log("value", value)
 
     // ignore updates originating from this client
     if (!value || value.lastClientId === clientId) return
@@ -1694,6 +1701,36 @@ export const userAuthenticated = user => {
     else {
       fetch(value)
     }
+  })
+
+  dataRef.on('child_added', snapshot => {
+    const value = snapshot.val()
+    console.log("data child_added", value)
+  })
+
+  dataRef.on('child_changed', snapshot => {
+    const value = snapshot.val()
+    console.log("data child_changed", value)
+  })
+
+  dataRef.on('child_removed', snapshot => {
+    const value = snapshot.val()
+    console.log("data child_removed", value)
+  })
+
+  contextChildrenRef.on('child_added', snapshot => {
+    const value = snapshot.val()
+    console.log("contextChildrenRef child_added", value)
+  })
+
+  contextChildrenRef.on('child_changed', snapshot => {
+    const value = snapshot.val()
+    console.log("contextChildrenRef child_changed", value)
+  })
+
+  contextChildrenRef.on('child_removed', snapshot => {
+    const value = snapshot.val()
+    console.log("contextChildrenRef child_removed", value)
   })
 }
 
