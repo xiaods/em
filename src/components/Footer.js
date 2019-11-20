@@ -15,7 +15,7 @@ import {
   logout,
 } from '../util.js'
 
-export const Footer = connect(({ status, settings, user }) => ({ status, settings, user }))(({ status, settings, user, dispatch }) => {
+export const Footer = connect(({ authenticated, connected, status, settings, user }) => ({ authenticated, connected, status, settings, user }))(({ authenticated, connected, status, settings, user, dispatch }) => {
 
   // hide footer during tutorial
   // except for the last step that directs them to the Help link in the footer
@@ -33,12 +33,11 @@ export const Footer = connect(({ status, settings, user }) => ({ status, setting
         window.scrollTo(0, 0)
         dispatch({ type: 'showHelper', id: 'help' })
       }}>Help</a>
-      {window.firebase ? <span>
-        <span> | </span>
-        {status === 'offline' || status === 'disconnected' || status === 'connected' ? <a tabIndex='-1' onClick={login}>Log In</a>
-        : <a tabIndex='-1' onClick={logout}>Log Out</a>
-        }
-      </span> : null}
+      <span> | </span>
+      {!authenticated && status !== 'connecting'
+        ? <a tabIndex='-1' disabled={!window.firebase || !connected} onClick={login}>Log In</a>
+        : <a tabIndex='-1' disabled={status === 'connecting'} onClick={logout}>Log Out</a>
+      }
     </li><br/>
     {user ? <li><span className='dim'>Logged in as: </span>{user.email}</li> : null}
     {user ? <li><span className='dim'>User ID: </span><span className='mono'>{user.uid.slice(0, 6)}</span></li> : null}

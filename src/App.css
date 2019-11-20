@@ -28,6 +28,11 @@ a {
   font-weight: 400;
 }
 
+a[disabled] {
+  pointer-events: none;
+  cursor: no-drop;
+}
+
 /* Headings */
 h1 {
   font-size: 32px;
@@ -334,7 +339,6 @@ body.dark {
   color: #e3e3e3;
 }
 
-.dark .footer a,
 .dark .tutorial-text a {
   color: #87ceeb;
 }
@@ -886,10 +890,6 @@ h1 .num-contexts {
   opacity: 0.8;
 }
 
-.dark .footer a {
-  color: skyblue;
-}
-
 .footer .support-link {
   color: inherit;
 }
@@ -897,6 +897,14 @@ h1 .num-contexts {
 .dark .footer {
   background-color: #212121;
   color: white;
+}
+
+.dark .footer a {
+  color: #87ceeb;
+}
+
+.footer a[disabled] {
+  color: #909090;
 }
 
 .dark .footer .support-link {

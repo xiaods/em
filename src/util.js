@@ -1774,8 +1774,6 @@ export const initialState = () => {
       'disconnected'   Yet to connect to firebase, but not in explicit offline mode.
       'connecting'     Connecting to firebase.
       'connected'      Connected to firebase, but not necessarily authenticated.
-      'authenticated'  Connected and authenticated.
-      'offline'        Disconnected and working in offline mode.
     */
     status: 'disconnected',
     focus: RANKED_ROOT,
@@ -1887,7 +1885,7 @@ export const syncRemote = (dataUpdates = {}, contextChildrenUpdates = {}, update
   }
 
   const state = store.getState()
-  if (state.status === 'authenticated' && Object.keys(allUpdates).length > 0) {
+  if (state.authenticated && Object.keys(allUpdates).length > 0) {
     state.userRef.update(allUpdates, callback)
   }
   else {

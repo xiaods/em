@@ -4,13 +4,13 @@
 
 import { createStore } from 'redux'
 import { decode as firebaseDecode } from 'firebase-encode'
-import globals from './globals.js'
 import { migrate } from './migrations/index.js'
 
 // reducers
 import { authenticate } from './reducers/authenticate.js'
 import { clear } from './reducers/clear.js'
 import { codeChange } from './reducers/codeChange.js'
+import { connect } from './reducers/connect.js'
 import { cursorBeforeSearch } from './reducers/cursorBeforeSearch.js'
 import { cursorHistory } from './reducers/cursorHistory.js'
 import { data } from './reducers/data.js'
@@ -42,7 +42,6 @@ import { tutorialStep } from './reducers/tutorialStep.js'
 import {
   EMPTY_TOKEN,
   FIREBASE_CONFIG,
-  OFFLINE_TIMEOUT,
   ROOT_TOKEN,
   SCHEMA_CONTEXTCHILDREN,
   SCHEMA_ROOT,
@@ -70,6 +69,7 @@ export const appReducer = (state = initialState(), action) => {
     authenticate,
     clear,
     codeChange,
+    connect,
     cursorBeforeSearch,
     cursorHistory,
     data,
@@ -321,32 +321,16 @@ export const initFirebase = () => {
     const connectedRef = firebase.database().ref(".info/connected")
     connectedRef.on('value', snapshot => {
       const connected = snapshot.val()
-      const status = store.getState().status
+
+      // user may be logged in and disconnected due to Firebase offline mode
+      store.dispatch({ type: 'connect', value: connected })
 
       // either connect with authenticated user or go to connected state until they login
-      if (connected) {
-
-        // once connected, disable offline mode timer
-        window.clearTimeout(globals.offlineTimer)
-
-        if (firebase.auth().currentUser) {
-          userAuthenticated(firebase.auth().currentUser)
-        }
-        else {
-          store.dispatch({ type: 'status', value: 'connected' })
-        }
-      }
-
-      // enter offline mode
-      else if (status === 'authenticated') {
-        store.dispatch({ type: 'status', value: 'offline' })
+      if (connected && firebase.auth().currentUser) {
+        userAuthenticated(firebase.auth().currentUser)
       }
     })
   }
-
-  globals.offlineTimer = window.setTimeout(() => {
-    store.dispatch({ type: 'status', value: 'offline' })
-  }, OFFLINE_TIMEOUT)
 }
 
 export const store = createStore(
