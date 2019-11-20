@@ -4,7 +4,6 @@ import * as htmlparser from 'htmlparser2'
 import emojiStrip from 'emoji-strip'
 import * as pluralize from 'pluralize'
 import * as flow from 'lodash.flow'
-import * as throttle from 'lodash.throttle'
 import * as murmurHash3 from 'murmurhash3js'
 import { clientId, isMobile } from './browser.js'
 import { fetch, store } from './store.js'
@@ -19,7 +18,6 @@ import {
   RENDER_DELAY,
   ROOT_TOKEN,
   SCHEMA_LATEST,
-  SYNC_QUEUE_THROTTLE,
   TUTORIAL_STEP_NONE,
   TUTORIAL_STEP_START,
   TUTORIAL_STEP_SECONDTHOUGHT,
@@ -1646,17 +1644,6 @@ export const userAuthenticated = user => {
     email: user.email
   })
 
-  // store user email locally so that we can delete the offline queue instead of overwriting user's data
-  // preserve the queue until the value handler in case the user is new (no data), in which case we can sync the queue
-  // TODO: A malicious user could log out, make edits offline, and change the email so that the next logged in user's data would be overwritten; warn user of queued updates and confirm
-  if (localStorage.user !== user.email) {
-    if (localStorage.queue && localStorage.queue !== '{}') {
-      Object.assign(globals.queuePreserved, JSON.parse(localStorage.queue))
-    }
-    delete localStorage.queue
-    localStorage.user = user.email
-  }
-
   // load Firebase data
   // TODO: Prevent userAuthenticated from being called twice in a row to avoid having to detach the value handler
   userRef.off('value')
@@ -1668,27 +1655,17 @@ export const userAuthenticated = user => {
 
     // init root if it does not exist (i.e. local == false)
     // must check root keys for all possible schema versions
-    if (!value.data || (
-      !value.data.root &&
-      !value.data[ROOT_TOKEN] &&
-      !value.data[hashThought(ROOT_TOKEN)]
+    if (value.data && (
+      value.data.root ||
+      value.data[ROOT_TOKEN] ||
+      value.data[hashThought(ROOT_TOKEN)]
     )) {
-      if (globals.queuePreserved && Object.keys(globals.queuePreserved).length > 0) {
-        syncRemote({}, {}, {
-          lastClientId: clientId,
-          lastUpdated: timestamp(),
-          ...globals.queuePreserved
-        })
-        globals.queuePreserved = {}
-      }
-      else {
-        const state = store.getState()
-        sync(state.data, state.contextChildren, {
-          updates: {
-            schemaVersion: SCHEMA_LATEST
-          }
-        })
-      }
+      const state = store.getState()
+      sync(state.data, state.contextChildren, {
+        updates: {
+          schemaVersion: SCHEMA_LATEST
+        }
+      })
     }
     // otherwise sync all data locally
     else {
@@ -1879,14 +1856,14 @@ export const initialState = () => {
   return state
 }
 
-/** Adds remote updates to a local queue so they can be resumed after a disconnect. */
-/** prepends data and contextChildren keys for syncing to Firebase */
-export const syncRemote = (dataUpdates = {}, contextChildrenUpdates = {}, updates = {}, { bypassQueue } = {}, callback) => {
+/** Sync updates to Firebase. Prepends data and contextChildren keys. */
+export const syncRemote = (dataUpdates = {}, contextChildrenUpdates = {}, updates = {}, callback) => {
 
-  const hasUpdates =
+  if (!(
     Object.keys(dataUpdates).length > 0 ||
     Object.keys(contextChildrenUpdates).length > 0 ||
     Object.keys(updates).length > 0
+  )) return
 
   // prepend data/ and encode key
   const prependedDataUpdates = reduceObj(dataUpdates, (key, value) => ({
@@ -1896,75 +1873,31 @@ export const syncRemote = (dataUpdates = {}, contextChildrenUpdates = {}, update
     ['contextChildren/' + key]: value
   }))
 
-  // add updates to queue appending clientId and timestamp
-  const queue = {
-    ...JSON.parse(localStorage.queue || '{}'),
-    // encode keys for firebase
-    ...(hasUpdates ? {
-      ...updates,
-      ...prependedDataUpdates,
-      ...prependedContextChildrenUpdates,
-      // do not update lastClientId and lastUpdated if there are no data updates (e.g. just a settings update)
-      // there are some trivial settings updates that get pushed to the remote when the app loads, setting lastClientId and lastUpdated, which can cause the client to ignore data updates from the remote thinking it is already up-to-speed
-      // TODO: A root level lastClientId/lastUpdated is an overreaching solution.
-      ...(Object.keys(dataUpdates).length > 0 ? {
-        lastClientId: clientId,
-        lastUpdated: timestamp()
-      } : null)
-    } : {})
+  const allUpdates = {
+    ...updates,
+    ...prependedDataUpdates,
+    ...prependedContextChildrenUpdates,
+    // do not update lastClientId and lastUpdated if there are no data updates (e.g. just a settings update)
+    // there are some trivial settings updates that get pushed to the remote when the app loads, setting lastClientId and lastUpdated, which can cause the client to ignore data updates from the remote thinking it is already up-to-speed
+    // TODO: A root level lastClientId/lastUpdated is an overreaching solution.
+    ...(Object.keys(dataUpdates).length > 0 ? {
+      lastClientId: clientId,
+      lastUpdated: timestamp()
+    } : null)
   }
 
-  // allow hashkeys migration to bypass the queue (otherwise it exceeds the localStorage quota)
-  if (!bypassQueue) {
-    localStorage.queue = JSON.stringify(queue)
-    flushSyncQueue(callback)
+  const state = store.getState()
+  if (state.status === 'authenticated' && Object.keys(allUpdates).length > 0) {
+    state.userRef.update(allUpdates, callback)
   }
   else {
-    console.info('Bypassing queue')
-    const state = store.getState()
-    if (state.status === 'authenticated' && Object.keys(queue).length > 0) {
-      state.userRef.update(queue, (err, ...args) => {
-        console.info('Updated')
-        if (callback) {
-          callback(err, ...args)
-        }
-      })
-    }
+    console.error('Attempt to sync with remote when not authenticated', allUpdates)
   }
 }
 
-/** Flushes the local sync queue by deleting localStorage.queue and sending to Firebase */
-export const flushSyncQueue = throttle(callback => {
-
-  const state = store.getState()
-  const queue = JSON.parse(localStorage.queue || '{}')
-
-  // if authenticated, execute all updates
-  // otherwise, queue them up
-  if (state.status === 'authenticated' && Object.keys(queue).length > 0) {
-
-    state.userRef.update(queue, (err, ...args) => {
-
-      if (!err) {
-        // TODO: Do not delete updates added during async
-        delete localStorage.queue
-      }
-
-      if (callback) {
-        callback(err, ...args)
-      }
-
-    })
-  }
-  // invoke callback asynchronously whether online or not in order to not outrace re-render
-  else if (callback) {
-    setTimeout(callback, RENDER_DELAY)
-  }
-}, SYNC_QUEUE_THROTTLE)
-
 /** Saves data to state, localStorage, and Firebase. */
 // assume timestamp has already been updated on dataUpdates
-export const sync = (dataUpdates={}, contextChildrenUpdates={}, { local = true, remote = true, state = true, bypassQueue, forceRender, updates, callback } = {}) => {
+export const sync = (dataUpdates={}, contextChildrenUpdates={}, { local = true, remote = true, state = true, forceRender, updates, callback } = {}) => {
 
   const lastUpdated = timestamp()
 
@@ -2002,7 +1935,7 @@ export const sync = (dataUpdates={}, contextChildrenUpdates={}, { local = true, 
 
   // firebase
   if (remote) {
-    syncRemote(dataUpdates, contextChildrenUpdates, updates, { bypassQueue }, callback)
+    syncRemote(dataUpdates, contextChildrenUpdates, updates, callback)
   }
   else {
     // do not let callback outrace re-render

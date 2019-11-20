@@ -64,8 +64,7 @@ export const migrateHashKeys = value => {
   console.info(`Syncing ${Object.keys(dataUpdates).length}...`)
 
   // TODO: Remove remote: false to enable
-  // queue is too big for localStorage
-  sync(dataUpdates, contextChildrenUpdates, { updates: { schemaVersion: SCHEMA_HASHKEYS }, local: false, bypassQueue: true, forceRender: true, callback: () => {
+  sync(dataUpdates, contextChildrenUpdates, { updates: { schemaVersion: SCHEMA_HASHKEYS }, local: false, forceRender: true, callback: () => {
     console.info('Done')
   }})
 }

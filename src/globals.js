@@ -22,9 +22,6 @@ let rendered
 // Set to offline mode 5 seconds after startup. Cancelled with successful login.
 let offlineTimer
 
-// a silly global variable used to preserve the sync queue for new users
-let queuePreserved = {}
-
 /** These aren's so bad. They're for debugging. */
 
 // simulate dragging and hovering over all drop targets for debugging
@@ -44,7 +41,6 @@ export default {
   ellipsizeContextItems,
   newChildHelperTimeout,
   offlineTimer,
-  queuePreserved,
   rendered,
   simulateDrag,
   simulateDropHover,

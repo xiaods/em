@@ -35,7 +35,6 @@ import { status } from './reducers/status.js'
 import { toggleBindContext } from './reducers/toggleBindContext.js'
 import { toggleCodeView } from './reducers/toggleCodeView.js'
 import { toggleContextView } from './reducers/toggleContextView.js'
-import { toggleQueue } from './reducers/toggleQueue.js'
 import { tutorialChoice } from './reducers/tutorialChoice.js'
 import { tutorialStep } from './reducers/tutorialStep.js'
 
@@ -59,7 +58,6 @@ import {
   getThought,
   initialState,
   isTutorial,
-  flushSyncQueue,
   sync,
   syncRemote,
   userAuthenticated
@@ -96,7 +94,6 @@ export const appReducer = (state = initialState(), action) => {
     toggleBindContext,
     toggleCodeView,
     toggleContextView,
-    toggleQueue,
     tutorialChoice,
     tutorialStep,
 
@@ -334,7 +331,6 @@ export const initFirebase = () => {
 
         if (firebase.auth().currentUser) {
           userAuthenticated(firebase.auth().currentUser)
-          flushSyncQueue()
         }
         else {
           store.dispatch({ type: 'status', value: 'connected' })
