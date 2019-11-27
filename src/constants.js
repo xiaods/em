@@ -109,3 +109,4 @@ export const FIREBASE_CONFIG = {
 }
 
 export const SYNC_QUEUE_THROTTLE = 500
+export const EDIT_THROTTLE = 500

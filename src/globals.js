@@ -26,6 +26,8 @@ let offlineTimer
 // a silly global variable used to preserve the sync queue for new users
 let queuePreserved = {} // eslint-disable-line prefer-const
 
+let itemChange
+
 /** These aren's so bad. They're for debugging. */
 
 // simulate dragging and hovering over all drop targets for debugging
@@ -47,6 +49,7 @@ export default {
   disableOnFocus,
   disableTutorial,
   ellipsizeContextItems,
+  itemChange,
   newChildHelperTimeout,
   offlineTimer,
   queuePreserved,

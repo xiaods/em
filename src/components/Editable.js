@@ -2,6 +2,7 @@ import React from 'react'
 import { connect } from 'react-redux'
 import he from 'he'
 import * as classNames from 'classnames'
+import * as throttle from 'lodash.throttle'
 import globals from '../globals.js'
 import { store } from '../store.js'
 import { isMobile } from '../browser.js'
@@ -11,6 +12,7 @@ import ContentEditable from 'react-contenteditable'
 
 // constants
 import {
+  EDIT_THROTTLE,
   ROOT_TOKEN,
   TUTORIAL2_STEP_CONTEXT1_PARENT,
   TUTORIAL2_STEP_CONTEXT1,
@@ -97,6 +99,53 @@ export const Editable = connect()(({ focus, itemsRanked, contextChain, showConte
     }
   }
 
+  // throttle the onChange event handler
+  const itemChange = throttle(value => {
+
+   console.log(value)
+
+   const state = store.getState()
+
+    // NOTE: When Child components are re-rendered on edit, change is called with identical old and new values (?) causing an infinite loop
+    const newValue = he.decode(strip(value))
+
+    // safari adds <br> to empty contenteditables after editing, so strip thnem out
+    // make sure empty items are truly empty
+    if (ref.current) {
+      ref.current.innerHTML = newValue
+    }
+
+    if (newValue !== oldValue) {
+
+      const item = getThought(oldValue)
+      if (item) {
+        dispatch({ type: 'existingItemChange', context, showContexts, oldValue, newValue, rankInContext: rank, itemsRanked, contextChain })
+
+        // store the value so that we have a transcendental signifier when it is changed
+        oldValue = newValue
+
+        const { tutorialChoice, tutorialStep } = state.settings
+        if (newValue && (
+          (
+            Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT1_PARENT &&
+            newValue.toLowerCase() === TUTORIAL_CONTEXT1_PARENT[tutorialChoice].toLowerCase()
+          ) || (
+            Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT2_PARENT &&
+            newValue.toLowerCase() === TUTORIAL_CONTEXT2_PARENT[tutorialChoice].toLowerCase()
+          ) || (
+            (
+              Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT1 ||
+              Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT2
+            ) &&
+            newValue.toLowerCase() === TUTORIAL_CONTEXT[tutorialChoice].toLowerCase()
+          )
+        )) {
+          tutorialNext()
+        }
+      }
+    }
+  }, EDIT_THROTTLE)
+
   // add identifiable className for restoreSelection
   return <ContentEditable
     className={classNames({
@@ -146,6 +195,9 @@ export const Editable = connect()(({ focus, itemsRanked, contextChain, showConte
     }}
     // prevented by mousedown event above for hidden items
     onFocus={e => {
+
+      globals.itemChange = itemChange
+
       const state = store.getState()
 
       // not sure if this can happen, but I observed some glitchy behavior with the cursor moving when a drag and drop is completed so check dragInProgress to be. safe
@@ -171,6 +223,11 @@ export const Editable = connect()(({ focus, itemsRanked, contextChain, showConte
       }
     }}
     onBlur={() => {
+
+      // flush any throttled item change
+      // equivalent to util.flushEdits()
+      itemChange.flush()
+
       // wait until the next render to determine if we have really blurred
       // otherwise editing may be incorrectly set to false when clicking on another thought from edit mode (which results in a blur and focus in quick succession)
       if (isMobile) {
@@ -182,58 +239,7 @@ export const Editable = connect()(({ focus, itemsRanked, contextChain, showConte
       }
     }}
     onChange={e => {
-
-      const state = store.getState()
-
-      // NOTE: When Child components are re-rendered on edit, change is called with identical old and new values (?) causing an infinite loop
-      const newValue = he.decode(strip(e.target.value))
-
-      // safari adds <br> to empty contenteditables after editing, so strip thnem out
-      // make sure empty items are truly empty
-      if (ref.current && newValue.length === 0) {
-        ref.current.innerHTML = newValue
-      }
-
-      if (newValue !== oldValue) {
-        const item = getThought(oldValue)
-        if (item) {
-          dispatch({ type: 'existingItemChange', context, showContexts, oldValue, newValue, rankInContext: rank, itemsRanked, contextChain })
-
-          // store the value so that we have a transcendental signifier when it is changed
-          oldValue = newValue
-
-          const { tutorialChoice, tutorialStep } = state.settings
-          if (newValue && (
-            (
-              Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT1_PARENT &&
-              newValue.toLowerCase() === TUTORIAL_CONTEXT1_PARENT[tutorialChoice].toLowerCase()
-            ) || (
-              Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT2_PARENT &&
-              newValue.toLowerCase() === TUTORIAL_CONTEXT2_PARENT[tutorialChoice].toLowerCase()
-            ) || (
-              (
-                Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT1 ||
-                Math.floor(tutorialStep) === TUTORIAL2_STEP_CONTEXT2
-              ) &&
-              newValue.toLowerCase() === TUTORIAL_CONTEXT[tutorialChoice].toLowerCase()
-            )
-          )) {
-            tutorialNext()
-          }
-
-          // superscriptHelperTimeout = setTimeout(() => {
-          //   const data = store.getState().data
-          //   // new item belongs to at least 2 contexts
-          //   if (getThought(newValue, newValue].memberOf && data).memberOf.length >= 2) {
-          //     dispatch({ type: 'showHelperIcon', id: 'superscript', data: {
-          //       value: newValue,
-          //       num: getThought(newValue, data).memberOf.length,
-          //       itemsRanked
-          //     }})
-          //   }
-          // }, HELPER_SUPERSCRIPT_DELAY)
-        }
-      }
+      itemChange(e.target.value)
     }}
 
     onPaste={e => {

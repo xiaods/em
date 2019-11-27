@@ -21,6 +21,7 @@ import {
   cursorForward,
   deleteItem,
   exit,
+  flushEdits,
   getChildrenWithRank,
   getNextRank,
   getRankAfter,
@@ -590,6 +591,7 @@ export const handleGesture = (gesture, e) => {
 
   const shortcut = globalShortcuts().find(shortcut => shortcut.gesture === gesture)
   if (shortcut) {
+    flushEdits()
     shortcut.exec(e, { type: 'gesture' })
   }
 }
@@ -614,6 +616,10 @@ export const handleKeyboard = e => {
   let isAllowDefault = false // eslint-disable-line fp/no-let
   e.allowDefault = () => isAllowDefault = true // eslint-disable-line no-return-assign
   if (shortcut) {
+    // TODO: For some reason the editable still doesn't flush properly before the shortcut is executed
+    // maybe because functions like itemNew read data before the action is dispatched
+    // try this again after the timing has been fixed
+    flushEdits()
     shortcut.exec(e, { type: 'keyboard' })
     if (!isAllowDefault) {
       e.preventDefault()

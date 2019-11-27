@@ -1245,6 +1245,7 @@ export const deleteItem = () => {
 */
 // NOOP if the cursor is not set
 export const newItem = ({ at, insertNewChild, insertBefore, value = '', offset } = {}) => {
+  console.log('newItem')
 
   const state = store.getState()
   const tutorialStep = state.settings.tutorialStep
@@ -1985,3 +1986,10 @@ export const hashThought = key =>
 
 export const getThought = (key, data = store.getState().data) =>
   data[hashThought(key)]
+
+export const flushEdits = () => {
+  if (globals.itemChange && globals.itemChange.flush) {
+    console.log('flushEdits')
+    globals.itemChange.flush()
+  }
+}
