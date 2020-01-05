@@ -21,6 +21,7 @@ import {
   cursorForward,
   deleteItem,
   exit,
+  exportContext,
   getChildrenWithRank,
   getNextRank,
   getRankAfter,
@@ -139,13 +140,13 @@ export const globalShortcuts = perma(() => [
                 newItemsRanked: itemsRankedPrevNew.concat(child)
               })
             })
-  
+
             store.dispatch({
               type: 'existingItemDelete',
               rank,
               itemsRanked: unroot(itemsRanked)
             })
-  
+
             // restore selection
             if (!isMobile || editing) {
               asyncFocus.enable()
@@ -546,7 +547,19 @@ export const globalShortcuts = perma(() => [
       window.scrollTo(0, 0)
       store.dispatch({ type: 'showHelper', id: 'shortcuts' })
     }
-  }
+  },
+
+  {
+    id: 'export',
+    name: 'Export',
+    description: 'Export',
+    keyboard: { key: 'p', shift: true, meta: true },
+    exec: () => {
+      const { cursor } = store.getState()
+      const exported = exportContext(unrank(cursor))
+      console.log(exported)
+    }
+  },
 ]
 
 // ensure modified shortcuts are checked before unmodified
