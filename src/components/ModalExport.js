@@ -28,9 +28,9 @@ export const ModalExport = () => {
   const [selected, setSelected] = useState(exportOptions[0])
   const [isOpen, setIsOpen] = useState(false)
   const [wrapperRef, setWrapper] = useState()
-  const descendants = getDescendants(cursor)
 
-  const exportMessage = `Export "${ellipsize(headValue(cursor))}"` + (descendants.length > 0 ? ` and ${descendants.length} subthoughts${descendants.length === 1 ? '' : 's'} as ${selected.label}` : '')
+  const descendants = cursor ? getDescendants(cursor) : []
+  const exportMessage = cursor ? `Export "${ellipsize(headValue(cursor))}"` + (descendants.length > 0 ? ` and ${descendants.length} subthoughts${descendants.length === 1 ? '' : 's'} as ${selected.label}` : '') : null
 
   useEffect(() => {
     document.addEventListener('click', onClickOutside)
